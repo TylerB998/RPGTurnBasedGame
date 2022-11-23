@@ -1,7 +1,8 @@
 #Importing modules
-from turtle import width
 import random
 import pygame
+import button
+
 
 pygame.init()
 
@@ -25,6 +26,7 @@ action_cooldown = 0
 action_wait_time = 90
 attack = False
 potion = False
+potion_effect = 15
 clicked = False
 
 #define fonts
@@ -37,11 +39,13 @@ blue = (0,0,255)
 
 #load images
 #background image
-background_img = pygame.image.load('RPG game/assets/Background/background.png').convert_alpha()
+background_img = pygame.image.load('assets/Background/1.png').convert_alpha()
 #panel image
-panel_img = pygame.image.load('RPG game/assets/Icons/panel.png').convert_alpha()
+panel_img = pygame.image.load('assets/Icons/panel.png').convert_alpha()
+#potion image
+potion_img = pygame.image.load('assets/Icons/potion.png').convert_alpha()
 #sword mouse image
-sword_img = pygame.image.load('RPG game/assets/Icons/sword.png').convert_alpha()
+sword_img = pygame.image.load('assets/Icons/sword.png').convert_alpha()
 
 
 #function for drawing text
@@ -79,16 +83,16 @@ class Fighter():
         self.update_time = pygame.time.get_ticks()
         #load idle images
         temp_list = []
-        for i in range(9):
-            img = pygame.image.load(f'RPG game/assets/{self.name}/Idle/{i}.png')
-            img = pygame.transform.scale(img, (img.get_width() * 3, img.get_height() * 3))
+        for i in range(8):
+            img = pygame.image.load(f'assets/{self.name}/Idle/{i}.png')
+            img = pygame.transform.scale(img, (img.get_width() * 1, img.get_height() * 1))
             temp_list.append(img)
         self.animation_list.append(temp_list)
         #load attack images
         temp_list = []
-        for i in range(7):
-            img = pygame.image.load(f'RPG game/assets/{self.name}/Attack/{i}.png')
-            img = pygame.transform.scale(img, (img.get_width() * 3, img.get_height() * 3))
+        for i in range(8):
+            img = pygame.image.load(f'assets/{self.name}/Attack/{i}.png')
+            img = pygame.transform.scale(img, (img.get_width() * 1, img.get_height() * 1))
             temp_list.append(img)
         self.animation_list.append(temp_list)
         self.image = self.animation_list[self.action][self.frame_index]
@@ -97,16 +101,16 @@ class Fighter():
 
     #update method
     def update(self):
-       animation_cooldown = 100
-    #   #handle animation
-    #   #update image
-       self.image = self.animation_list[self.action][self.frame_index]
-    #   #check if enough time has passed since the last update
-       if pygame.time.get_ticks() - self.update_time > animation_cooldown:
+        animation_cooldown = 45
+    #handle animation
+    #update image
+        self.image = self.animation_list[self.action][self.frame_index]
+    #check if enough time has passed since the last update
+        if pygame.time.get_ticks() - self.update_time > animation_cooldown:
            self.update_time = pygame.time.get_ticks()
            self.frame_index += 1
-    #   #if the animation has run out then reset back to the start
-       if self.frame_index >= len(self.animation_list[self.action]):
+    #if the animation has run out then reset back to the start
+        if self.frame_index >= len(self.animation_list[self.action]):
            self.idle()
     #
     #idle method
@@ -124,10 +128,12 @@ class Fighter():
         if target.hp < 1:
             target.hp = 0
             target.alive = False
+        damage_taken = DamageTaken(target.rect.centerx, target.rect.y, str(damage), red)
+        damage_taken_group.add(damage_taken)
         #set variables to attack animation 
-            self.action = 1
-            self.frame_index = 0
-            self.update_time = pygame.time.get_ticks()
+        self.action = 1
+        self.frame_index = 0
+        self.update_time = pygame.time.get_ticks()
 
     def draw(self):
         screen.blit(self.image, self.rect)
@@ -148,8 +154,26 @@ class HealthBar():
         pygame.draw.rect(screen, red, (self.x, self.y, 200, 20))
         pygame.draw.rect(screen, green, (self.x, self.y, 200 * ratio, 20))
 
+class DamageTaken(pygame.sprite.Sprite):
+    def __init__(self, x, y, damage, color):
+        pygame.sprite.Sprite.__init__(self)
+        self.image = font.render(damage, True, color)
+        self.rect = self.image.get_rect()
+        self.rect.center = (x, y)
+        self.counter = 0
+
+    def update(self):
+        #move damage text up
+        self.rect.y -= 1
+        #delete previous damage text
+        self.counter += 1
+        if self.counter > 50:
+            self.kill()
+
+damage_taken_group = pygame.sprite.Group()
+
 #The main character (mc) stats (x & y position, name, max_hp, strength, potions)
-mc = Fighter(240, 500, 'MC', 30, 10, 3)
+mc = Fighter(240, 500, 'MC', 40, 10, 3)
 #The goblin enemy (goblin) stats (x & y position, name, max_hp, strength, potions)
 goblin1 = Fighter(1300, 600, 'Goblin', 20, 6, 1)
 goblin2 = Fighter(1700, 600, 'Goblin', 20, 6, 1)
@@ -162,7 +186,8 @@ mc_health_bar = HealthBar(100, screen_height - bottom_panel + 50, mc.hp, mc.max_
 goblin1_health_bar = HealthBar(1300, screen_height - bottom_panel + 50, goblin1.hp, goblin1.max_hp)
 goblin2_health_bar = HealthBar(1300, screen_height - bottom_panel + 110, goblin2.hp, goblin2.max_hp)
 
-#mc.hp = 10 : testing hp from taking damage
+#create buttons
+potion_button = button.Button(screen, 100, screen_height - bottom_panel + 70, potion_img, 64, 64)
 
 run = True
 
@@ -185,6 +210,9 @@ while run:
         goblin.update()
         goblin.draw()
 
+    #draw the damage taken text
+    damage_taken_group.update()
+    damage_taken_group.draw(screen)
 
     #control player actions
     #reset action variables
@@ -203,7 +231,11 @@ while run:
             if clicked == True:
                 attack = True
                 target = goblin_list[count]
-
+    #drawing the potion
+    if potion_button.draw():
+        potion = True
+    #show number of potions remaining
+    draw_text(str(mc.potions), font, red, 150, screen_height - bottom_panel + 70)
 
     #player action
     if mc.alive == True:
@@ -216,6 +248,20 @@ while run:
                     mc.attack(target)
                     current_fighter += 1
                     action_cooldown = 0
+                #potion
+                if potion == True:
+                    if mc.potions > 0:
+                        #check if the potion will heal the player more then max hp
+                        if mc.max_hp - mc.hp > potion_effect:
+                          heal_amount = potion_effect
+                        else:
+                            heal_amount =   mc.max_hp - mc.hp
+                        mc.hp += heal_amount
+                        mc.potions -= 1
+                        damage_taken = DamageTaken(mc.rect.centerx, mc.rect.y, str(heal_amount), green)
+                        damage_taken_group.add(damage_taken)
+                        current_fighter += 1
+                        action_cooldown = 0
 
     #enemy action
     #count & enumerate is used to keep a count of all the goblins in the list. from 0(1) - infinite
@@ -224,10 +270,24 @@ while run:
             if goblin.alive == True:
                 action_cooldown += 1
                 if action_cooldown >= action_wait_time:
+                    #check if goblin needs to heal first
+                    if (goblin.hp / goblin.max_hp) < 0.5 and goblin.potions > 0:
+                        #check if the potion will heal the goblin more then max hp
+                        if goblin.max_hp - goblin.hp > potion_effect:
+                          heal_amount = potion_effect
+                        else:
+                            heal_amount =   goblin.max_hp - goblin.hp
+                        goblin.hp += heal_amount
+                        goblin.potions -= 1
+                        damage_taken = DamageTaken(goblin.rect.centerx, goblin.rect.y, str(heal_amount), green)
+                        damage_taken_group.add(damage_taken)
+                        current_fighter += 1
+                        action_cooldown = 0
                     #attack
-                    goblin.attack(mc)
-                    current_fighter += 1
-                    action_cooldown = 0
+                    else:
+                        goblin.attack(mc)
+                        current_fighter += 1
+                        action_cooldown = 0
             else:
                 current_fighter += 1
     
